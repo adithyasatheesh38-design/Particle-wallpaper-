@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Particle Wallpaper</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#05060f;font-family:system-ui,sans-serif;touch-action:none}
+  canvas{display:block;width:100vw;height:100vh}
+  .ui{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);
+      width:min(92vw,420px);box-sizing:border-box;display:flex;flex-direction:column;gap:10px;
+      background:rgba(10,12,25,.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+      padding:14px;border-radius:16px;color:#dfe6ff;font-size:13px}
+  .ui label{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  input[type=range]{width:55%}
+  .row{display:flex;gap:10px}
+  button{flex:1;border:0;border-radius:10px;padding:10px 12px;background:#3b5bff;color:#fff;font-size:14px;cursor:pointer}
+  button.secondary{background:rgba(255,255,255,.12)}
+  #setwp{display:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="ui" id="ui">
+  <label>Particles <input id="count" type="range" min="30" max="350" value="140"></label>
+  <label>Speed <input id="speed" type="range" min="0" max="30" value="8"></label>
+  <label>Links <input id="links" type="range" min="0" max="220" value="120"></label>
+  <div class="row">
+    <button id="theme" class="secondary">Theme</button>
+    <button id="setwp">Set as wallpaper</button>
+  </div>
+</div>
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const HAS_ANDROID = typeof window.Android !== 'undefined';
+let W,H,particles=[],mouse={x:-9999,y:-9999};
+const countInput=document.getElementById('count'),speedInput=document.getElementById('speed'),linkInput=document.getElementById('links');
+let hue=Math.random()*360, theme=0;
+
+// Themes are functions so the hue can change without rebuilding the list.
+const themes=[
+  ()=>['#05060f','hsla('+hue+',90%,65%,'],
+  ()=>['#02040a','rgba(120,220,255,'],
+  ()=>['#0b0714','hsla(300,85%,70%,']
+];
+
+// Restore saved settings when running inside the Android app.
+if(HAS_ANDROID){
+  try{
+    const p=JSON.parse(Android.getPrefs());
+    countInput.value=p.count;speedInput.value=p.speed;linkInput.value=p.links;
+    theme=p.theme%themes.length;hue=p.hue;
+  }catch(e){}
+  document.getElementById('setwp').style.display='block';
+}
+function save(){
+  if(HAS_ANDROID) Android.savePrefs(+countInput.value,+speedInput.value,+linkInput.value,theme,hue);
+}
+
+function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight;makeParticles()}
+function makeParticles(){const n=+countInput.value;particles=[];
+ for(let i=0;i<n;i++)particles.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5),vy:(Math.random()-.5),r:Math.random()*1.8+.6});}
+
+addEventListener('resize',resize);
+addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY});
+canvas.addEventListener('touchstart',e=>{const t=e.touches[0];mouse.x=t.clientX;mouse.y=t.clientY},{passive:true});
+canvas.addEventListener('touchmove',e=>{const t=e.touches[0];mouse.x=t.clientX;mouse.y=t.clientY},{passive:true});
+canvas.addEventListener('touchend',()=>{mouse.x=mouse.y=-9999});
+addEventListener('mouseleave',()=>{mouse.x=mouse.y=-9999});
+
+countInput.oninput=()=>{makeParticles();save()};
+speedInput.oninput=save;
+linkInput.oninput=save;
+document.getElementById('theme').onclick=()=>{theme=(theme+1)%themes.length;hue=Math.random()*360;save()};
+document.getElementById('setwp').onclick=()=>{save();Android.setWallpaper()};
+
+function draw(){
+ const [bg,col]=themes[theme](),speed=+speedInput.value/1000,linkDist=+linkInput.value;
+ ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+ for(const p of particles){
+  p.x+=p.vx*speed*60;p.y+=p.vy*speed*60;
+  if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1;
+  const dx=mouse.x-p.x,dy=mouse.y-p.y,d=Math.hypot(dx,dy);
+  if(d<140){p.x-=dx/d*1.4;p.y-=dy/d*1.4}
+  ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+  ctx.fillStyle=col+'0.9)';ctx.fill();
+ }
+ for(let i=0;i<particles.length;i++)for(let j=i+1;j<particles.length;j++){
+  const a=particles[i],b=particles[j],d=Math.hypot(a.x-b.x,a.y-b.y);
+  if(d<linkDist){ctx.strokeStyle=col+(1-d/linkDist)*0.35+')';ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}
+ }
+ requestAnimationFrame(draw);
+}
+resize();draw();
+</script>
+</body>
+</html>
